@@ -1,0 +1,69 @@
+parameters:
+  environment: dev
+  azureserviceconnectionName: tbd
+  keyvaultname: tbd
+  configurationID: tbd
+  deploy: 'true'
+  operationmode: 'onboard'
+
+jobs:
+- deployment: Stage_virtualnetworks_${{ parameters.environment }}
+  environment: ${{ parameters.environment }}
+  displayName: Stage - virtual networks - ${{ parameters.environment }} environment
+  condition: ${{ parameters.deploy }}
+  variables: 
+  - name: environment
+    value: ${{ parameters.environment }}
+  - template: '../modulepipeline-params/globalvariables.yml'
+  - template: '../modulepipeline-params/${{ parameters.environment }}/03.virtualnetworks.yml'
+  strategy:
+    runOnce:
+      deploy:
+        steps:
+        - script: echo 'input params, env=${{parameters.environment}} serviceconnection=${{parameters.azureServiceConnectionName}} configurationID=${{parameters.configurationID}} deploy=${{parameters.deploy}}'
+        - checkout: self
+        - task: AzurePowerShell@5
+          displayName: 'Deploy - Virtual Networks'
+          inputs:
+            azureSubscription: ${{ parameters.azureserviceconnectionName }}
+            ScriptType: 'InlineScript' 
+            Inline: |
+              $inputObject = @{    
+                "environment"       = "${{ parameters.environment }}" 
+                "serviceconnection" = "${{ parameters.azureServiceConnectionName }}"
+                "configurationID"   = "${{ parameters.configurationID }}"
+                "deploy"            = "${{ parameters.deploy }}"
+              }
+              Write-Host("Currently active input parameters:")
+              $inputObject | Convertto-Json
+
+              try {
+                Write-Host "Performing re-auth to landing zones"
+                ./powershell/Reauth-UsingKeyvaultCertificate.ps1 -KeyvaultName ${{ parameters.keyvaultname }} -CertificateKeyName ${{ variables.landingzone_spn_certpfx_key }} -CertificatePasswordKeyName ${{ variables.landingzone_spn_certsecret_key }} -SPNClientIdKeyName ${{ variables.landingzone_spn_clientid_key }} -TenantIdKeyName ${{ variables.tenantid_key }} -LoginToAzure
+              }
+              catch {
+                Write-Host "PIPELINE ERROR - Landing zone re-auth"
+                Write-Host $_
+                exit 1
+              }
+
+              try {
+                $config = ./powershell/99.Download-FromStorageAccount.ps1 -ConfigurationStorage ${{ variables.configstoragename }} -ContainerName ${{ variables.configcontainername }} -BlobName ${{ parameters.configurationID }}
+              }
+              catch {
+                Write-Host "PIPELINE ERROR - download from storage account"
+                Write-Host $_
+                exit 1
+              }
+
+              try {
+                ./powershell/03.Create-VirtualNetworks.ps1 -Config $config -ConfigurationStorage ${{ variables.configstoragename }} -ContainerName ${{ variables.configcontainername }}
+              }
+              catch {
+                Write-Host "PIPELINE ERROR - create virtual networks"
+                Write-Host $_
+                exit 1
+              }
+
+              Write-Host "All done, thank you!"
+            azurePowerShellVersion: 'LatestVersion'
