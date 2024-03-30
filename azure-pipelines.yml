@@ -9,7 +9,7 @@ variables:
   azureServiceConnection: 'AJAY'
   resourceGroupName: 'AJAY'
   location: 'EAST US'
-  templateFile: './main.bicep'
+  #templateFile: './main.bicep'
 pool:
   vmImage: $(vmImageName)
 
