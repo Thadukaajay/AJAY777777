@@ -16,11 +16,9 @@ pool:
 steps:
 - task: AzureResourceManagerTemplateDeployment@3
   inputs:
-    deploymentScope: 'Resource Group'
+    deploymentScope: 'Subscription'
     azureResourceManagerConnection: 'Pay-As-You-Go (2f5597c4-eec3-493f-aefa-ca20c3b3e83e)'
     subscriptionId: '2f5597c4-eec3-493f-aefa-ca20c3b3e83e'
-    action: 'Create Or Update Resource Group'
-    resourceGroupName: '$(resourceGroupName)'
     location: 'East US'
     templateLocation: 'Linked artifact'
     csmFile: '$(templateFile)'
